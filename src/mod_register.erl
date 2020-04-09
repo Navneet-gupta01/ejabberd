@@ -5,7 +5,7 @@
 %%% Created :  8 Dec 2002 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -628,7 +628,10 @@ mod_doc() ->
               "This protocol enables end users to use a XMPP client to:"), "",
            ?T("* Register a new account on the server."), "",
            ?T("* Change the password from an existing account on the server."), "",
-           ?T("* Delete an existing account on the server.")],
+           ?T("* Delete an existing account on the server."), "",
+           ?T("This module reads also another option defined globally for the "
+	      "server: 'registration_timeout'. Please check that option "
+	      "documentation in the section with top-level options.")],
       opts =>
           [{access,
             #{value => ?T("AccessName"),

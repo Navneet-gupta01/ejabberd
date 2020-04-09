@@ -5,7 +5,7 @@
 %%% Created : 19 Feb 2015 by Christophe Romain <christophe.romain@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2006-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2006-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -570,7 +570,7 @@ compile_result(Results) ->
     end.
 
 compile_options() ->
-    [verbose, report_errors, report_warnings]
+    [verbose, report_errors, report_warnings, ?ALL_DEFS]
     ++ [{i, filename:join(app_dir(App), "include")}
         || App <- [fast_xml, xmpp, p1_utils, ejabberd]]
     ++ [{i, filename:join(mod_dir(Mod), "include")}

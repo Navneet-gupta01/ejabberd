@@ -3,7 +3,7 @@
 %%% Created :  2 Jun 2013 by Evgeniy Khramtsov <ekhramtsov@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -259,6 +259,8 @@ init_per_testcase(TestCase, OrigConfig) ->
     case Test of
         "test_connect" ++ _ ->
             Config;
+        "webadmin_" ++ _ ->
+            Config;
 	"test_legacy_auth_feature" ->
 	    connect(Config);
 	"test_legacy_auth" ++ _ ->
@@ -372,6 +374,7 @@ db_tests(DB) when DB == mnesia; DB == redis ->
        auth_md5,
        presence_broadcast,
        last,
+       webadmin_tests:single_cases(),
        roster_tests:single_cases(),
        private_tests:single_cases(),
        privacy_tests:single_cases(),
@@ -401,6 +404,7 @@ db_tests(DB) ->
        auth_md5,
        presence_broadcast,
        last,
+       webadmin_tests:single_cases(),
        roster_tests:single_cases(),
        private_tests:single_cases(),
        privacy_tests:single_cases(),
@@ -500,7 +504,14 @@ all() ->
 stop_ejabberd(Config) ->
     ok = application:stop(ejabberd),
     ?recv1(#stream_error{reason = 'system-shutdown'}),
-    ?recv1({xmlstreamend, <<"stream:stream">>}),
+    case suite:recv(Config) of
+        {xmlstreamend, <<"stream:stream">>} ->
+            ok;
+        closed ->
+            ok;
+        Other ->
+            suite:match_failure([Other], [closed])
+    end,
     Config.
 
 test_connect_bad_xml(Config) ->

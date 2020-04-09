@@ -5,7 +5,7 @@
 %%% Created : 8 Sep 2007 by Badlop <badlop@ono.com>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -625,10 +625,7 @@ justcreated_to_binary(J) when is_atom(J) ->
 %%       ok | error
 %% @doc Create a room immediately with the default options.
 create_room(Name1, Host1, ServerHost) ->
-    case create_room_with_opts(Name1, Host1, ServerHost, []) of
-        ok -> change_room_option(Name1, Host1, <<"persistent">>, <<"true">>);
-        Error -> Error
-    end.
+    create_room_with_opts(Name1, Host1, ServerHost, []).
 
 create_room_with_opts(Name1, Host1, ServerHost, CustomRoomOpts) ->
     true = (error /= (Name = jid:nodeprep(Name1))),
@@ -643,7 +640,12 @@ create_room_with_opts(Name1, Host1, ServerHost, CustomRoomOpts) ->
                                lists:keysort(1, DefRoomOpts)),
 
     %% Store the room on the server, it is not started yet though at this point
-    mod_muc:store_room(ServerHost, Host, Name, RoomOpts),
+    case lists:keyfind(persistent, 1, RoomOpts) of
+	{persistent, true} ->
+	    mod_muc:store_room(ServerHost, Host, Name, RoomOpts);
+	_ ->
+	    ok
+    end,
 
     %% Get all remaining mod_muc parameters that might be utilized
     Access = mod_muc_opt:access(ServerHost),
@@ -803,7 +805,7 @@ get_rooms(ServiceArg) ->
     Hosts = find_services(ServiceArg),
     lists:flatmap(
       fun(Host) ->
-	      [{RoomName, RoomHost, Host, Pid}
+	      [{RoomName, RoomHost, ejabberd_router:host_of_route(Host), Pid}
 	       || {RoomName, RoomHost, Pid} <- mod_muc:get_online_rooms(Host)]
       end, Hosts).
 

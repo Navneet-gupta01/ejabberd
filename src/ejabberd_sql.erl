@@ -5,7 +5,7 @@
 %%% Created :  8 Dec 2004 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -227,6 +227,8 @@ escape_like_arg(S) when is_binary(S) ->
 escape_like_arg($%) -> <<"\\%">>;
 escape_like_arg($_) -> <<"\\_">>;
 escape_like_arg($\\) -> <<"\\\\">>;
+escape_like_arg($[) -> <<"\\[">>;     % For MSSQL
+escape_like_arg($]) -> <<"\\]">>;
 escape_like_arg(C) when is_integer(C), C >= 0, C =< 255 -> <<C>>.
 
 escape_like_arg_circumflex(S) when is_binary(S) ->
@@ -251,7 +253,7 @@ to_list(EscapeFun, Val) ->
 
 to_array(EscapeFun, Val) ->
     Escaped = lists:join(<<",">>, lists:map(EscapeFun, Val)),
-    [<<"{">>, Escaped, <<"}">>].
+    lists:flatten([<<"{">>, Escaped, <<"}">>]).
 
 to_string_literal(odbc, S) ->
     <<"'", (escape(S))/binary, "'">>;
@@ -718,7 +720,8 @@ generic_escape() ->
 		boolean = fun(true) -> <<"1">>;
                              (false) -> <<"0">>
                           end,
-		in_array_string = fun(X) -> <<"'", (escape(X))/binary, "'">> end
+		in_array_string = fun(X) -> <<"'", (escape(X))/binary, "'">> end,
+                like_escape = fun() -> <<"">> end
                }.
 
 pgsql_sql_query(SQLQuery) ->
@@ -733,10 +736,11 @@ pgsql_sql_query_format(SQLQuery) ->
 pgsql_escape() ->
     #sql_escape{string = fun(X) -> <<"E'", (escape(X))/binary, "'">> end,
 		integer = fun(X) -> misc:i2l(X) end,
-		boolean = fun(true) -> <<"1">>;
-                             (false) -> <<"0">>
+		boolean = fun(true) -> <<"'t'">>;
+                             (false) -> <<"'f'">>
                           end,
-		in_array_string = fun(X) -> <<"E'", (escape(X))/binary, "'">> end
+		in_array_string = fun(X) -> <<"E'", (escape(X))/binary, "'">> end,
+                like_escape = fun() -> <<"ESCAPE E'\\\\'">> end
                }.
 
 sqlite_sql_query(SQLQuery) ->
@@ -754,7 +758,8 @@ sqlite_escape() ->
 		boolean = fun(true) -> <<"1">>;
                              (false) -> <<"0">>
                           end,
-		in_array_string = fun(X) -> <<"'", (standard_escape(X))/binary, "'">> end
+		in_array_string = fun(X) -> <<"'", (standard_escape(X))/binary, "'">> end,
+                like_escape = fun() -> <<"ESCAPE '\\'">> end
                }.
 
 standard_escape(S) ->
@@ -767,9 +772,20 @@ mssql_sql_query(SQLQuery) ->
     sqlite_sql_query(SQLQuery).
 
 pgsql_prepare(SQLQuery, State) ->
-    Escape = #sql_escape{_ = fun(X) -> X end},
-    N = length((SQLQuery#sql_query.args)(Escape)),
-    Args = [<<$$, (integer_to_binary(I))/binary>> || I <- lists:seq(1, N)],
+    Escape = #sql_escape{_ = fun(_) -> arg end,
+                         like_escape = fun() -> escape end},
+    {RArgs, _} =
+        lists:foldl(
+	    fun(arg, {Acc, I}) ->
+		{[<<$$, (integer_to_binary(I))/binary>> | Acc], I + 1};
+	       (escape, {Acc, I}) ->
+		   {[<<"ESCAPE E'\\\\'">> | Acc], I};
+	       (List, {Acc, I}) when is_list(List) ->
+		   {[<<$$, (integer_to_binary(I))/binary>> | Acc], I + 1}
+	    end, {[], 1}, (SQLQuery#sql_query.args)(Escape)),
+    Args = lists:reverse(RArgs),
+    %N = length((SQLQuery#sql_query.args)(Escape)),
+    %Args = [<<$$, (integer_to_binary(I))/binary>> || I <- lists:seq(1, N)],
     Query = (SQLQuery#sql_query.format_query)(Args),
     pgsql:prepare(State#state.db_ref, SQLQuery#sql_query.hash, Query).
 
@@ -779,13 +795,15 @@ pgsql_execute_escape() ->
 		boolean = fun(true) -> "1";
                              (false) -> "0"
                           end,
-		in_array_string = fun(X) -> <<"\"", (escape(X))/binary, "\"">> end
+		in_array_string = fun(X) -> <<"\"", (escape(X))/binary, "\"">> end,
+                like_escape = fun() -> ignore end
                }.
 
 pgsql_execute_sql_query(SQLQuery, State) ->
     Args = (SQLQuery#sql_query.args)(pgsql_execute_escape()),
+    Args2 = lists:filter(fun(ignore) -> false; (_) -> true end, Args),
     ExecuteRes =
-        pgsql:execute(State#state.db_ref, SQLQuery#sql_query.hash, Args),
+        pgsql:execute(State#state.db_ref, SQLQuery#sql_query.hash, Args2),
 %    {T, ExecuteRes} =
 %        timer:tc(pgsql, execute, [State#state.db_ref, SQLQuery#sql_query.hash, Args]),
 %    io:format("T ~ts ~p~n", [SQLQuery#sql_query.hash, T]),
@@ -985,12 +1003,18 @@ pgsql_execute_to_odbc(_) -> {updated, undefined}.
 
 %% part of init/1
 %% Open a database connection to MySQL
-mysql_connect(Server, Port, DB, Username, Password, ConnectTimeout,  _, _) ->
+mysql_connect(Server, Port, DB, Username, Password, ConnectTimeout, Transport, _) ->
+    SSLOpts = case Transport of
+		  ssl ->
+		      [ssl_required];
+		  _ ->
+		      []
+	      end,
     case p1_mysql_conn:start(binary_to_list(Server), Port,
 			     binary_to_list(Username),
 			     binary_to_list(Password),
 			     binary_to_list(DB),
-			     ConnectTimeout, fun log/3)
+			     ConnectTimeout, fun log/3, SSLOpts)
 	of
 	{ok, Ref} ->
 	    p1_mysql_conn:fetch(
@@ -1095,6 +1119,8 @@ db_opts(Host) ->
 warn_if_ssl_unsupported(tcp, _) ->
     ok;
 warn_if_ssl_unsupported(ssl, pgsql) ->
+    ok;
+warn_if_ssl_unsupported(ssl, mysql) ->
     ok;
 warn_if_ssl_unsupported(ssl, Type) ->
     ?WARNING_MSG("SSL connection is not supported for ~ts", [Type]).

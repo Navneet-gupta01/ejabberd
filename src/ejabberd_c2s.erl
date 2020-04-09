@@ -2,7 +2,7 @@
 %%% Created :  8 Dec 2016 by Evgeny Khramtsov <ekhramtsov@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -43,7 +43,7 @@
 	 process_closed/2, process_terminated/2, process_info/2]).
 %% API
 -export([get_presence/1, set_presence/2, resend_presence/1, resend_presence/2,
-	 open_session/1, call/3, cast/2, send/2, close/1, close/2, stop/1,
+	 open_session/1, call/3, cast/2, send/2, close/1, close/2, stop_async/1,
 	 reply/2, copy_state/2, set_timeout/2, route/2, format_reason/2,
 	 host_up/1, host_down/1, send_ws_ping/1, bounce_message_queue/2]).
 
@@ -110,10 +110,9 @@ close(Ref) ->
 close(Ref, Reason) ->
     xmpp_stream_in:close(Ref, Reason).
 
--spec stop(pid()) -> ok;
-	  (state()) -> no_return().
-stop(Ref) ->
-    xmpp_stream_in:stop(Ref).
+-spec stop_async(pid()) -> ok.
+stop_async(Pid) ->
+    xmpp_stream_in:stop_async(Pid).
 
 -spec send(pid(), xmpp_element()) -> ok;
 	  (state(), xmpp_element()) -> state().
@@ -285,7 +284,8 @@ process_auth_result(#{sasl_mech := Mech,
     State.
 
 process_closed(State, Reason) ->
-    stop(State#{stop_reason => Reason}).
+    stop_async(self()),
+    State#{stop_reason => Reason}.
 
 process_terminated(#{sid := SID, socket := Socket,
 		     jid := JID, user := U, server := S, resource := R} = State,
@@ -902,7 +902,7 @@ bounce_message_queue({_, Pid} = SID, JID) ->
 	    receive {route, Pkt} ->
 		    ejabberd_router:route(Pkt),
 		    bounce_message_queue(SID, JID)
-	    after 0 ->
+	    after 100 ->
 		    ok
 	    end
     end.
@@ -937,7 +937,11 @@ fix_from_to(Pkt, #{jid := JID}) when ?is_stanza(Pkt) ->
 			{U, S, _} -> jid:replace_resource(JID, From#jid.resource);
 			_ -> From
 		    end,
-	    xmpp:set_from_to(Pkt, From1, JID)
+	    To1 = case xmpp:get_to(Pkt) of
+			#jid{lresource = <<>>} = To2 -> To2;
+			_ -> JID
+		    end,
+	    xmpp:set_from_to(Pkt, From1, To1)
     end;
 fix_from_to(Pkt, _State) ->
     Pkt.

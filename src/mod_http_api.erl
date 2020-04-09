@@ -5,7 +5,7 @@
 %%% Created : 15 Sep 2014 by Christophe Romain <christophe.romain@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -524,5 +524,13 @@ mod_options(_) ->
 
 mod_doc() ->
     #{desc =>
-          ?T("This module provides a ReST API to call "
-             "ejabberd commands using JSON data.")}.
+	  [?T("This module provides a ReST API to call ejabberd commands "
+	      "using JSON data."), "",
+	   ?T("To use this module, in addition to adding it to the 'modules' "
+	      "section, you must also add it to 'request_handlers' of some "
+	      "listener."), "",
+	   ?T("To use a specific API version N, when defining the URL path "
+	      "in the request_handlers, add a 'vN'. "
+	      "For example: '/api/v2: mod_http_api'"), "",
+	   ?T("To run a command, send a POST request to the corresponding "
+	      "URL: 'http://localhost:5280/api/<command_name>'")]}.

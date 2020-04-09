@@ -5,7 +5,7 @@
 %%% Created : 20 Aug 2015 by Holger Weiss <holger@zedat.fu-berlin.de>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2015-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2015-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -320,7 +320,7 @@ mod_doc() ->
                      "used for file uploads. The keyword @HOST@ is replaced "
                      "with the virtual host name. NOTE: different virtual "
                      "hosts cannot use the same PUT URL. "
-                     "The default value is \"http://@HOST@:5444\".")}},
+                     "The default value is \"https://@HOST@:5443\".")}},
            {get_url,
             #{value => ?T("URL"),
               desc =>
@@ -545,7 +545,7 @@ process(_LocalPath, #request{method = 'PUT', host = Host, ip = IP,
 		ok ->
 		    http_response(201, CustomHeaders);
 		{ok, Headers, OutData} ->
-		    http_response(201, Headers ++ CustomHeaders, OutData);
+		    http_response(201, ejabberd_http:apply_custom_headers(Headers, CustomHeaders), OutData);
 		{error, closed} ->
 		    ?DEBUG("Cannot store file ~ts from ~ts for ~ts: connection closed",
 			   [Path, encode_addr(IP), Host]),
@@ -595,7 +595,7 @@ process(_LocalPath, #request{method = Method, host = Host, ip = IP} = Request)
 					 $", FileName/binary, $">>}]
 			       end,
 		    Headers2 = [{<<"Content-Type">>, ContentType} | Headers1],
-		    Headers3 = Headers2 ++ CustomHeaders,
+		    Headers3 = ejabberd_http:apply_custom_headers(Headers2, CustomHeaders),
 		    http_response(200, Headers3, {file, Path});
 		{error, eacces} ->
 		    ?WARNING_MSG("Cannot serve ~ts to ~ts: Permission denied",
@@ -633,7 +633,7 @@ process(_LocalPath, #request{method = 'OPTIONS', host = Host,
     try gen_server:call(Proc, get_conf, ?CALL_TIMEOUT) of
 	{ok, _DocRoot, CustomHeaders} ->
 	    AllowHeader = {<<"Allow">>, <<"OPTIONS, HEAD, GET, PUT">>},
-	    http_response(200, [AllowHeader | CustomHeaders])
+	    http_response(200, ejabberd_http:apply_custom_headers([AllowHeader], CustomHeaders))
     catch
 	exit:{noproc, _} ->
 	    ?WARNING_MSG("Cannot handle OPTIONS request from ~ts for ~ts: "

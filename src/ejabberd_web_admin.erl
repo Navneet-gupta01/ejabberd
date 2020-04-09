@@ -5,7 +5,7 @@
 %%% Created :  9 Apr 2004 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -150,7 +150,21 @@ url_to_path(URL) -> str:tokens(URL, <<"/">>).
 %%%==================================
 %%%% process/2
 
-process([<<"server">>, SHost | RPath] = Path,
+process(Path, #request{raw_path = RawPath} = Request) ->
+    Continue = case Path of
+		   [E] ->
+		       binary:match(E, <<".">>) /= nomatch;
+		   _ ->
+		       false
+	       end,
+    case Continue orelse binary:at(RawPath, size(RawPath) - 1) == $/ of
+	true ->
+	    process2(Path, Request);
+	_ ->
+	    {301, [{<<"Location">>, <<RawPath/binary, "/">>}], <<>>}
+    end.
+
+process2([<<"server">>, SHost | RPath] = Path,
 	#request{auth = Auth, lang = Lang, host = HostHTTP,
 		 method = Method} =
 	    Request) ->
@@ -185,7 +199,7 @@ process([<<"server">>, SHost | RPath] = Path,
 	  end;
       false -> ejabberd_web:error(not_found)
     end;
-process(RPath,
+process2(RPath,
 	#request{auth = Auth, lang = Lang, host = HostHTTP,
 		 method = Method} =
 	    Request) ->
@@ -326,7 +340,7 @@ make_xhtml(Els, Host, Node, Lang, JID, Level) ->
 			   [?XAE(<<"div">>, [{<<"id">>, <<"copyright">>}],
 				 [?XE(<<"p">>,
 				  [?AC(<<"https://www.ejabberd.im/">>, <<"ejabberd">>),
-				   ?C(<<" (c) 2002-2019 ">>),
+				   ?C(<<" (c) 2002-2020 ">>),
 				   ?AC(<<"https://www.process-one.net/">>, <<"ProcessOne, leader in messaging and push solutions">>)]
                                  )])])])]}}.
 

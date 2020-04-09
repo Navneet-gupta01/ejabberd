@@ -5,7 +5,7 @@
 %%% Created : 10 Aug 2008 by Badlop <badlop@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -1512,6 +1512,9 @@ send_stanza(FromString, ToString, Stanza) ->
 	ejabberd_router:route(xmpp:set_from_to(Pkt, From, To))
     catch _:{xmpp_codec, Why} ->
 	    io:format("incorrect stanza: ~ts~n", [xmpp:format_error(Why)]),
+	    {error, Why};
+	  _:{badmatch, {error, {Code, Why}}} when is_integer(Code) ->
+	    io:format("invalid xml: ~p~n", [Why]),
 	    {error, Why};
 	  _:{badmatch, {error, Why}} ->
 	    io:format("invalid xml: ~p~n", [Why]),

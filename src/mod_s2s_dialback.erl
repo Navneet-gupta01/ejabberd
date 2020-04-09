@@ -2,7 +2,7 @@
 %%% Created : 16 Dec 2016 by Evgeny Khramtsov <ekhramtsov@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -265,7 +265,8 @@ s2s_out_packet(#{server := LServer,
     ejabberd_s2s_in:update_state(
       Pid, fun(S) -> send_db_result(S, Response) end),
     %% At this point the connection is no longer needed and we can terminate it
-    ejabberd_s2s_out:stop(State);
+    ejabberd_s2s_out:stop_async(self()),
+    State;
 s2s_out_packet(#{server := LServer, remote_server := RServer} = State,
 	       #db_result{to = LServer, from = RServer,
 			  type = Type} = Result) when Type /= undefined ->

@@ -5,7 +5,7 @@
 %%% Created :  1 Dec 2007 by Christophe Romain <christophe.romain@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2019   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -220,12 +220,12 @@ get_subnodes_tree(Host, Node) ->
 	Rec ->
 	    Type = Rec#pubsub_node.type,
 	    H = node_flat_sql:encode_host(Host),
-	    N = <<(ejabberd_sql:escape_like_arg_circumflex(Node))/binary, "/%">>,
+	    N = <<(ejabberd_sql:escape_like_arg(Node))/binary, "/%">>,
 	    Sub = case catch
 		ejabberd_sql:sql_query_t(
 		?SQL("select @(node)s, @(parent)s, @(plugin)s, @(nodeid)d from pubsub_node "
 		     "where host=%(H)s and plugin=%(Type)s and"
-		     " (parent=%(Node)s or parent like %(N)s escape '^')"))
+		     " (parent=%(Node)s or parent like %(N)s %ESCAPE)"))
 	    of
 		{selected, RItems} ->
 		    [raw_to_node(Host, Item) || Item <- RItems];
