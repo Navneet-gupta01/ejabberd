@@ -283,7 +283,7 @@ get_auth_account2(HostOfRule, AccessRule, User, Server,
 make_xhtml(Els, Host, Lang, JID, Level) ->
     make_xhtml(Els, Host, cluster, Lang, JID, Level).
 
-%% @spec (Els, Host, Node, Lang, JID) -> {200, [html], xmlelement()}
+%% @spec (Els, Host, Node, Lang, JID, Level::integer()) -> {200, [html], xmlelement()}
 %% where Host = global | string()
 %%       Node = cluster | atom()
 %%       JID = jid()
@@ -340,6 +340,7 @@ make_xhtml(Els, Host, Node, Lang, JID, Level) ->
 			   [?XAE(<<"div">>, [{<<"id">>, <<"copyright">>}],
 				 [?XE(<<"p">>,
 				  [?AC(<<"https://www.ejabberd.im/">>, <<"ejabberd">>),
+				   ?C(<<" ">>), ?C(ejabberd_option:version()),
 				   ?C(<<" (c) 2002-2020 ">>),
 				   ?AC(<<"https://www.process-one.net/">>, <<"ProcessOne, leader in messaging and push solutions">>)]
                                  )])])])]}}.
@@ -444,7 +445,7 @@ process_admin(_Host, #request{path = [<<"additions.js">>]}, _) ->
 process_admin(global, #request{path = [<<"vhosts">>], lang = Lang}, AJID) ->
     Res = list_vhosts(Lang, AJID),
     make_xhtml((?H1GL((translate:translate(Lang, ?T("Virtual Hosts"))),
-		      <<"virtual-hosting">>, ?T("Virtual Hosting")))
+		      <<"basic/#xmpp-domains">>, ?T("XMPP Domains")))
 		 ++ Res,
 	       global, Lang, AJID, 1);
 process_admin(Host,  #request{path = [<<"users">>], q = Query,
@@ -479,7 +480,7 @@ process_admin(Host, #request{path = [<<"last-activity">>],
 		list_last_activity(Host, Lang, false, Month);
 	    _ -> list_last_activity(Host, Lang, true, Month)
 	  end,
-    PageH1 = ?H1GL(translate:translate(Lang, ?T("Users Last Activity")), <<"mod-last">>, <<"mod_last">>),
+    PageH1 = ?H1GL(translate:translate(Lang, ?T("Users Last Activity")), <<"modules/#mod-last">>, <<"mod_last">>),
     make_xhtml(PageH1 ++
 		 [?XAE(<<"form">>,
 		       [{<<"action">>, <<"">>}, {<<"method">>, <<"post">>}],
@@ -510,7 +511,7 @@ process_admin(Host, #request{path = [<<"last-activity">>],
 	       Host, Lang, AJID, 3);
 process_admin(Host, #request{path = [<<"stats">>], lang = Lang}, AJID) ->
     Res = get_stats(Host, Lang),
-    PageH1 = ?H1GL(translate:translate(Lang, ?T("Statistics")), <<"mod-stats">>, <<"mod_stats">>),
+    PageH1 = ?H1GL(translate:translate(Lang, ?T("Statistics")), <<"modules/#mod-stats">>, <<"mod_stats">>),
     Level = case Host of
 	global -> 1;
 	_ -> 3
@@ -1742,12 +1743,12 @@ pretty_string_int(String) when is_binary(String) ->
 %%%==================================
 %%%% navigation menu
 
-%% @spec (Host, Node, Lang, JID::jid()) -> [LI]
+%% @spec (Host, Node, Lang, JID::jid(), Level::integer()) -> [LI]
 make_navigation(Host, Node, Lang, JID, Level) ->
     Menu = make_navigation_menu(Host, Node, Lang, JID, Level),
     make_menu_items(Lang, Menu).
 
-%% @spec (Host, Node, Lang, JID::jid()) -> Menu
+%% @spec (Host, Node, Lang, JID::jid(), Level::integer()) -> Menu
 %% where Host = global | string()
 %%       Node = cluster | string()
 %%       Lang = string()

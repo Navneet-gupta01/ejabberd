@@ -36,14 +36,14 @@ doc() ->
      {listen,
       #{value => "[Options, ...]",
         desc =>
-            ?T("The option for listeners configuration. See "
-               "<<listeners,Listeners>> section of this document "
+            ?T("The option for listeners configuration. See the "
+               "http://../listen/[Listen Modules] section "
                "for details.")}},
      {modules,
       #{value => "{Module: Options}",
         desc =>
             ?T("The option for modules configuration. See "
-               "<<modules,Modules>> section of this document "
+               "http://../modules/[Modules] section "
                "for details.")}},
      {loglevel,
       #{value =>
@@ -253,7 +253,7 @@ doc() ->
      {acme,
       #{value => ?T("Options"),
         desc =>
-            ?T("ACME configuration. ACME is used to automatically "
+            ?T("http://../basic/#acme[ACME] configuration, to automatically "
                "obtain SSL certificates for the domains served by ejabberd, "
                "which means that certificate requests and renewals are "
                "performed to some CA server (aka \"ACME server\") in a fully "
@@ -355,11 +355,12 @@ doc() ->
                "at least one of the methods succeeds. "
                "The default value is '[mnesia]'.")}},
      {auth_opts,
-      #{desc =>
-            ?T("This option is used by the contributed module "
+      #{value => "[Option, ...]",
+        desc =>
+            ?T("This is used by the contributed module "
 	       "'ejabberd_auth_http' that can be installed from the "
 	       "'ejabberd-contrib' Git repository. Please refer to that "
-	       "module's README file for details about this option.")}},
+	       "module's README file for details.")}},
      {auth_password_format,
       #{value => "plain | scram",
         desc =>
@@ -445,7 +446,8 @@ doc() ->
                "any given JID. The option is intended to protect the server "
                "from CAPTCHA DoS. The default value is 'infinity'.")}},
      {captcha_host,
-      #{desc => ?T("Deprecated. Use 'captcha_url' instead.")}},
+      #{value => "String",
+        desc => ?T("Deprecated. Use 'captcha_url' instead.")}},
      {captcha_url,
       #{value => ?T("URL"),
         desc =>
@@ -483,7 +485,7 @@ doc() ->
         desc =>
             ?T("A list of Erlang nodes to connect on ejabberd startup. "
                "This option is mostly intended for ejabberd customization "
-               "and sofisticated setups. The default value is an empty list.")}},
+               "and sophisticated setups. The default value is an empty list.")}},
      {define_macro,
       #{value => "{MacroName: MacroValue}",
         desc =>
@@ -825,7 +827,7 @@ doc() ->
         desc =>
             {?T("Whether to use 'new' SQL schema. All schemas are located "
                 "at <https://github.com/processone/ejabberd/tree/~s/sql>. "
-                "There are two schemas available. The default lecacy schema "
+                "There are two schemas available. The default legacy schema "
                 "allows to store one XMPP domain into one ejabberd database. "
                 "The 'new' schema allows to handle several XMPP domains in a "
                 "single ejabberd database. Using this 'new' schema is best when "
