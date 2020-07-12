@@ -347,7 +347,7 @@ handle_cast({reload, NewOpts, _OldOpts}, #state{host = Host} = State) ->
     TTL = get_configured_ttl(NewOpts),
     {noreply, State#state{services = Services, secret = Secret, ttl = TTL}};
 handle_cast(Request, State) ->
-    ?ERROR_MSG("Got unexpected request from: ~p", [Request]),
+    ?ERROR_MSG("Got unexpected request: ~p", [Request]),
     {noreply, State}.
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
@@ -704,7 +704,7 @@ dedup([H | T]) -> [H | [E || E <- dedup(T), E /= H]].
 seconds_to_timestamp(Seconds) ->
     {Seconds div 1000000, Seconds rem 1000000, 0}.
 
--spec addr_to_str(inet:ip_address(), 0..65535) -> string().
+-spec addr_to_str(inet:ip_address(), 0..65535) -> iolist().
 addr_to_str({_, _, _, _, _, _, _, _} = Addr, Port) ->
     [$[, inet_parse:ntoa(Addr), $], $:, integer_to_list(Port)];
 addr_to_str({_, _, _, _} = Addr, Port) ->
