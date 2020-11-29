@@ -24,7 +24,7 @@
 
 %% xmpp_stream_out callbacks
 -export([tls_options/1, tls_required/1, tls_verify/1, tls_enabled/1,
-	 connect_timeout/1, address_families/1, default_port/1,
+	 connect_options/3, connect_timeout/1, address_families/1, default_port/1,
 	 dns_retries/1, dns_timeout/1,
 	 handle_auth_success/2, handle_auth_failure/3, handle_packet/2,
 	 handle_stream_end/2, handle_stream_downgraded/2,
@@ -39,7 +39,7 @@
 -export([start/3, start_link/3, connect/1, close/1, close/2, stop_async/1, send/2,
 	 route/2, establish/1, update_state/2, host_up/1, host_down/1]).
 
--include("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 -include("logger.hrl").
 -include("translate.hrl").
 
@@ -187,6 +187,20 @@ tls_verify(#{server_host := ServerHost} = State) ->
 tls_enabled(#{server_host := ServerHost}) ->
     ejabberd_s2s:tls_enabled(ServerHost).
 
+connect_options(Addr, Opts, #{server_host := ServerHost}) ->
+    BindAddr = case get_addr_type(Addr) of
+		   inet ->
+		       ejabberd_option:outgoing_s2s_ipv4_address(ServerHost);
+		   inet6 ->
+		       ejabberd_option:outgoing_s2s_ipv6_address(ServerHost)
+	       end,
+    case BindAddr of
+	undefined ->
+	    Opts;
+	_ ->
+	    [{ip, BindAddr} | Opts]
+    end.
+
 connect_timeout(#{server_host := ServerHost}) ->
     ejabberd_option:outgoing_s2s_timeout(ServerHost).
 
@@ -318,6 +332,10 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+-spec get_addr_type(inet:ip_address()) -> inet:address_family().
+get_addr_type({_, _, _, _}) -> inet;
+get_addr_type({_, _, _, _, _, _, _, _}) -> inet6.
+
 -spec resend_queue(state()) -> state().
 resend_queue(State) ->
     queue_fold(

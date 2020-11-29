@@ -36,7 +36,7 @@
 
 -include("logger.hrl").
 
--include("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 
 -include("ejabberd_http.hrl").
 
@@ -364,5 +364,8 @@ parsed_items(List) ->
 
 -spec route_text(pid(), binary()) -> ok.
 route_text(Pid, Data) ->
-    Pid ! {text, Data},
-    ok.
+    Pid ! {text_with_reply, Data, self()},
+    receive
+        {text_reply, Pid} ->
+            ok
+    end.

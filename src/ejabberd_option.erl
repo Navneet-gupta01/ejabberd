@@ -90,6 +90,8 @@
 -export([oom_killer/0]).
 -export([oom_queue/0]).
 -export([oom_watermark/0]).
+-export([outgoing_s2s_ipv4_address/0, outgoing_s2s_ipv4_address/1]).
+-export([outgoing_s2s_ipv6_address/0, outgoing_s2s_ipv6_address/1]).
 -export([outgoing_s2s_families/0, outgoing_s2s_families/1]).
 -export([outgoing_s2s_port/0, outgoing_s2s_port/1]).
 -export([outgoing_s2s_timeout/0, outgoing_s2s_timeout/1]).
@@ -137,6 +139,7 @@
 -export([sql_database/0, sql_database/1]).
 -export([sql_keepalive_interval/0, sql_keepalive_interval/1]).
 -export([sql_password/0, sql_password/1]).
+-export([sql_odbc_driver/0, sql_odbc_driver/1]).
 -export([sql_pool_size/0, sql_pool_size/1]).
 -export([sql_port/0, sql_port/1]).
 -export([sql_prepared_statements/0, sql_prepared_statements/1]).
@@ -666,6 +669,20 @@ outgoing_s2s_families() ->
 outgoing_s2s_families(Host) ->
     ejabberd_config:get_option({outgoing_s2s_families, Host}).
 
+-spec outgoing_s2s_ipv4_address() -> inet:ip4_address().
+outgoing_s2s_ipv4_address() ->
+    outgoing_s2s_ipv4_address(global).
+-spec outgoing_s2s_ipv4_address(global | binary()) -> inet:ip4_address().
+outgoing_s2s_ipv4_address(Host) ->
+    ejabberd_config:get_option({outgoing_s2s_ipv4_address, Host}).
+
+-spec outgoing_s2s_ipv6_address() -> inet:ip6_address().
+outgoing_s2s_ipv6_address() ->
+    outgoing_s2s_ipv6_address(global).
+-spec outgoing_s2s_ipv6_address(global | binary()) -> inet:ip6_address().
+outgoing_s2s_ipv6_address(Host) ->
+    ejabberd_config:get_option({outgoing_s2s_ipv6_address, Host}).
+
 -spec outgoing_s2s_port() -> 1..1114111.
 outgoing_s2s_port() ->
     outgoing_s2s_port(global).
@@ -927,6 +944,13 @@ sql_password() ->
 -spec sql_password(global | binary()) -> binary().
 sql_password(Host) ->
     ejabberd_config:get_option({sql_password, Host}).
+
+-spec sql_odbc_driver() -> binary().
+sql_odbc_driver() ->
+    sql_odbc_driver(global).
+-spec sql_odbc_driver(global | binary()) -> binary().
+sql_odbc_driver(Host) ->
+    ejabberd_config:get_option({sql_odbc_driver, Host}).
 
 -spec sql_pool_size() -> pos_integer().
 sql_pool_size() ->

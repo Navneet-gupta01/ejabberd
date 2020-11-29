@@ -35,7 +35,7 @@
 
 -include("logger.hrl").
 
--include("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 
 -include("ejabberd_http.hrl").
 
@@ -123,6 +123,11 @@ get_menu_items(Host, cluster, Lang, JID, Level) ->
 %% 	Items
 %%     ).
 
+is_allowed_path(global, RPath, JID) ->
+    is_allowed_path([], RPath, JID);
+is_allowed_path(Host, RPath, JID) when is_binary(Host) ->
+    is_allowed_path([<<"server">>, Host], RPath, JID);
+
 is_allowed_path(BasePath, {Path, _}, JID) ->
     is_allowed_path(BasePath ++ [Path], JID);
 is_allowed_path(BasePath, {Path, _, _}, JID) ->
@@ -133,19 +138,6 @@ is_allowed_path([<<"admin">> | Path], JID) ->
 is_allowed_path(Path, JID) ->
     {HostOfRule, AccessRule} = get_acl_rule(Path, 'GET'),
     any_rules_allowed(HostOfRule, AccessRule, JID).
-
-%% @spec(Path) -> URL
-%% where Path = [string()]
-%%       URL = string()
-%% Convert ["admin", "user", "tom"] -> "/admin/user/tom/"
-%%path_to_url(Path) ->
-%%    "/" ++ string:join(Path, "/") ++ "/".
-
-%% @spec(URL) -> Path
-%% where Path = [string()]
-%%       URL = string()
-%% Convert "admin/user/tom" -> ["admin", "user", "tom"]
-url_to_path(URL) -> str:tokens(URL, <<"/">>).
 
 %%%==================================
 %%%% process/2
@@ -938,7 +930,7 @@ user_info(User, Server, Query, Lang) ->
 			 end;
 		     _ -> translate:translate(Lang, ?T("Online"))
 		   end,
-    [?XC(<<"h1">>, (str:format(translate:translate(Lang, ?T("User ~ts")),
+    [?XC(<<"h1">>, (str:translate_and_format(Lang, ?T("User ~ts"),
                                                 [us_to_list(US)])))]
       ++
       case Res of
@@ -957,7 +949,7 @@ user_info(User, Server, Query, Lang) ->
 			 [?C(LastActivity)] ++
 			   UserItems ++
 			     [?P,
-			      ?INPUTT(<<"submit">>, <<"removeuser">>,
+			      ?INPUTTD(<<"submit">>, <<"removeuser">>,
 				      ?T("Remove User"))]))].
 
 user_parse_query(User, Server, Query) ->
@@ -1095,7 +1087,7 @@ get_node(global, Node, [], Query, Lang) ->
     Base = get_base_path(global, Node, 2),
     MenuItems2 = make_menu_items(global, Node, Base, Lang),
     [?XC(<<"h1">>,
-	 (str:format(translate:translate(Lang, ?T("Node ~p")), [Node])))]
+	 (str:translate_and_format(Lang, ?T("Node ~p"), [Node])))]
       ++
       case Res of
 	ok -> [?XREST(?T("Submitted"))];
@@ -1113,11 +1105,11 @@ get_node(global, Node, [], Query, Lang) ->
 	      [{<<"action">>, <<"">>}, {<<"method">>, <<"post">>}],
 	      [?INPUTT(<<"submit">>, <<"restart">>, ?T("Restart")),
 	       ?C(<<" ">>),
-	       ?INPUTT(<<"submit">>, <<"stop">>, ?T("Stop"))])];
+	       ?INPUTTD(<<"submit">>, <<"stop">>, ?T("Stop"))])];
 get_node(Host, Node, [], _Query, Lang) ->
     Base = get_base_path(Host, Node, 4),
     MenuItems2 = make_menu_items(Host, Node, Base, Lang),
-    [?XC(<<"h1">>, (str:format(translate:translate(Lang, ?T("Node ~p")), [Node]))),
+    [?XC(<<"h1">>, (str:translate_and_format(Lang, ?T("Node ~p"), [Node]))),
      ?XE(<<"ul">>, MenuItems2)];
 get_node(global, Node, [<<"db">>], Query, Lang) ->
     case ejabberd_cluster:call(Node, mnesia, system_info, [tables]) of
@@ -1173,7 +1165,7 @@ get_node(global, Node, [<<"db">>], Query, Lang) ->
 			   end,
 			   STables),
 	  [?XC(<<"h1">>,
-	       (str:format(translate:translate(Lang, ?T("Database Tables at ~p")),
+	       (str:translate_and_format(Lang, ?T("Database Tables at ~p"),
                                             [Node]))
 	  )]
 	    ++
@@ -1211,7 +1203,7 @@ get_node(global, Node, [<<"backup">>], Query, Lang) ->
 		 [?XRES(<<(translate:translate(Lang, ?T("Error")))/binary, ": ",
 			  ((str:format("~p", [Error])))/binary>>)]
 	   end,
-    [?XC(<<"h1">>, (str:format(translate:translate(Lang, ?T("Backup of ~p")), [Node])))]
+    [?XC(<<"h1">>, (str:translate_and_format(Lang, ?T("Backup of ~p"), [Node])))]
       ++
       ResS ++
 	[?XCT(<<"p">>,
@@ -1365,7 +1357,7 @@ get_node(global, Node, [<<"stats">>], _Query, Lang) ->
     TransactionsLogged = ejabberd_cluster:call(Node, mnesia, system_info,
 				  [transaction_log_writes]),
     [?XC(<<"h1">>,
-	 (str:format(translate:translate(Lang, ?T("Statistics of ~p")), [Node]))),
+	 (str:translate_and_format(Lang, ?T("Statistics of ~p"), [Node]))),
      ?XAE(<<"table">>, [],
 	  [?XE(<<"tbody">>,
 	       [?XE(<<"tr">>,
@@ -1433,7 +1425,7 @@ get_node(global, Node, [<<"update">>], Query, Lang) ->
     FmtLowLevelScript = (?XC(<<"pre">>,
 			     (str:format("~p", [LowLevelScript])))),
     [?XC(<<"h1">>,
-	 (str:format(translate:translate(Lang, ?T("Update ~p")), [Node])))]
+	 (str:translate_and_format(Lang, ?T("Update ~p"), [Node])))]
       ++
       case Res of
 	ok -> [?XREST(?T("Submitted"))];
@@ -1785,10 +1777,9 @@ make_host_node_menu(_, cluster, _Lang, _JID, _Level) ->
 make_host_node_menu(Host, Node, Lang, JID, Level) ->
     HostNodeBase = get_base_path(Host, Node, Level),
     HostNodeFixed = get_menu_items_hook({hostnode, Host, Node}, Lang),
-    HostNodeBasePath = url_to_path(HostNodeBase),
     HostNodeFixed2 = [Tuple
 		      || Tuple <- HostNodeFixed,
-			 is_allowed_path(HostNodeBasePath, Tuple, JID)],
+			 is_allowed_path(Host, Tuple, JID)],
     {HostNodeBase, iolist_to_binary(atom_to_list(Node)),
      HostNodeFixed2}.
 
@@ -1803,10 +1794,9 @@ make_host_menu(Host, HostNodeMenu, Lang, JID, Level) ->
 		    [{<<"nodes">>, ?T("Nodes"), HostNodeMenu},
 		     {<<"stats">>, ?T("Statistics")}]
 		      ++ get_menu_items_hook({host, Host}, Lang),
-    HostBasePath = url_to_path(HostBase),
     HostFixed2 = [Tuple
 		  || Tuple <- HostFixed,
-		     is_allowed_path(HostBasePath, Tuple, JID)],
+		     is_allowed_path(Host, Tuple, JID)],
     {HostBase, Host, HostFixed2}.
 
 make_node_menu(_Host, cluster, _Lang, _Level) ->
@@ -1829,10 +1819,9 @@ make_server_menu(HostMenu, NodeMenu, Lang, JID, Level) ->
 	     {<<"nodes">>, ?T("Nodes"), NodeMenu},
 	     {<<"stats">>, ?T("Statistics")}]
 	      ++ get_menu_items_hook(server, Lang),
-    BasePath = url_to_path(Base),
     Fixed2 = [Tuple
 	      || Tuple <- Fixed,
-		 is_allowed_path(BasePath, Tuple, JID)],
+		 is_allowed_path(global, Tuple, JID)],
     {Base, <<"">>, Fixed2}.
 
 get_menu_items_hook({hostnode, Host, Node}, Lang) ->

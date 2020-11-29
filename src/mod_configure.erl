@@ -39,7 +39,7 @@
 	 depends/2, mod_doc/0]).
 
 -include("logger.hrl").
--include("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 -include("ejabberd_sm.hrl").
 -include("translate.hrl").
 -include_lib("stdlib/include/ms_transform.hrl").
@@ -663,7 +663,7 @@ get_outgoing_s2s(Host, Lang) ->
 		    Host == FH orelse str:suffix(DotHost, FH)],
     lists:map(
       fun (T) ->
-	      Name = str:format(tr(Lang, ?T("To ~ts")),[T]),
+	      Name = str:translate_and_format(Lang, ?T("To ~ts"),[T]),
 	      #disco_item{jid = jid:make(Host),
 			  node = <<"outgoing s2s/", T/binary>>,
 			  name = Name}
@@ -675,7 +675,7 @@ get_outgoing_s2s(Host, Lang, To) ->
     lists:map(
       fun ({F, _T}) ->
 	      Node = <<"outgoing s2s/", To/binary, "/", F/binary>>,
-	      Name = str:format(tr(Lang, ?T("From ~ts")), [F]),
+	      Name = str:translate_and_format(Lang, ?T("From ~ts"), [F]),
 	      #disco_item{jid = jid:make(Host), node = Node, name = Name}
       end,
       lists:keysort(

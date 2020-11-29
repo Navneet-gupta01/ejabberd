@@ -68,14 +68,14 @@
 	 can_use_nick/4,
 	 get_subscribed_rooms/2,
 	 procname/2,
-	 route/1]).
+	 route/1, unhibernate_room/3]).
 
 -export([init/1, handle_call/3, handle_cast/2,
 	 handle_info/2, terminate/2, code_change/3,
 	 mod_opt_type/1, mod_options/1, depends/2]).
 
 -include("logger.hrl").
--include("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 -include("mod_muc.hrl").
 -include("mod_muc_room.hrl").
 -include("translate.hrl").
@@ -107,7 +107,7 @@
 -callback count_online_rooms_by_user(binary(), binary(), binary()) -> non_neg_integer().
 -callback get_online_rooms_by_user(binary(), binary(), binary()) -> [{binary(), binary()}].
 -callback get_subscribed_rooms(binary(), binary(), jid()) ->
-          {ok, [{jid(), [binary()]}]} | {error, db_failure}.
+          {ok, [{jid(), binary(), [binary()]}]} | {error, db_failure}.
 
 -optional_callbacks([get_subscribed_rooms/3]).
 
@@ -526,6 +526,18 @@ extract_password(#iq{} = IQ) ->
             false
     end.
 
+-spec unhibernate_room(binary(), binary(), binary()) -> {ok, pid()} | error.
+unhibernate_room(ServerHost, Host, Room) ->
+    RMod = gen_mod:ram_db_mod(ServerHost, ?MODULE),
+    case RMod:find_online_room(ServerHost, Room, Host) of
+	error ->
+	    case load_room(RMod, Host, ServerHost, Room) of
+		{ok, _} = R -> R;
+		_ -> error
+	    end;
+	{ok, _} = R2 -> R2
+    end.
+
 -spec route_to_room(stanza(), binary()) -> ok.
 route_to_room(Packet, ServerHost) ->
     From = xmpp:get_from(Packet),
@@ -701,8 +713,8 @@ process_mucsub(#iq{type = get, from = From, to = To, lang = Lang,
     ServerHost = ejabberd_router:host_of_route(Host),
     case get_subscribed_rooms(ServerHost, Host, From) of
 	{ok, Subs} ->
-	    List = [#muc_subscription{jid = JID, events = Nodes}
-		    || {JID, Nodes} <- Subs],
+	    List = [#muc_subscription{jid = JID, nick = Nick, events = Nodes}
+		    || {JID, Nick, Nodes} <- Subs],
 	    xmpp:make_iq_result(IQ, #muc_subscriptions{list = List});
 	{error, _} ->
 	    Txt = ?T("Database failure"),
@@ -790,18 +802,13 @@ load_permanent_rooms(Hosts, ServerHost, Opts) ->
 		      lists:foreach(
 			fun(R) ->
 				{Room, _} = R#muc_room.name_host,
-				case proplists:get_bool(persistent, R#muc_room.opts) of
-				    true ->
-					case RMod:find_online_room(ServerHost, Room, Host) of
-					    error ->
-						start_room(RMod, Host, ServerHost, Access,
-							   Room, HistorySize, RoomShaper,
-							   R#muc_room.opts, QueueType);
-					    {ok, _} ->
-						ok
-					end;
-				    _ ->
-					forget_room(ServerHost, Host, Room)
+				case RMod:find_online_room(ServerHost, Room, Host) of
+				    error ->
+					start_room(RMod, Host, ServerHost, Access,
+						   Room, HistorySize, RoomShaper,
+						   R#muc_room.opts, QueueType);
+				    {ok, _} ->
+					ok
 				end
 			end, get_rooms(ServerHost, Host))
 	      end, Hosts);
@@ -951,13 +958,13 @@ get_room_disco_item({Name, Host, Pid}, {Filter, JID, Lang}) ->
 	    Err
     end.
 
--spec get_subscribed_rooms(binary(), jid()) -> {ok, [{jid(), [binary()]}]} | {error, any()}.
+-spec get_subscribed_rooms(binary(), jid()) -> {ok, [{jid(), binary(), [binary()]}]} | {error, any()}.
 get_subscribed_rooms(Host, User) ->
     ServerHost = ejabberd_router:host_of_route(Host),
     get_subscribed_rooms(ServerHost, Host, User).
 
 -spec get_subscribed_rooms(binary(), binary(), jid()) ->
-			   {ok, [{jid(), [binary()]}]} | {error, any()}.
+			   {ok, [{jid(), binary(), [binary()]}]} | {error, any()}.
 get_subscribed_rooms(ServerHost, Host, From) ->
     LServer = jid:nameprep(ServerHost),
     Mod = gen_mod:db_mod(LServer, ?MODULE),
@@ -969,15 +976,15 @@ get_subscribed_rooms(ServerHost, Host, From) ->
 		   fun({Name, _, Pid}) when Pid == self() ->
 		       USR = jid:split(BareFrom),
 		       case erlang:get(muc_subscribers) of
-			   #{USR := #subscriber{nodes = Nodes}} ->
-			       [{jid:make(Name, Host), Nodes}];
+			   #{USR := #subscriber{nodes = Nodes, nick = Nick}} ->
+			       [{jid:make(Name, Host), Nick, Nodes}];
 			   _ ->
 			       []
 		       end;
 		       ({Name, _, Pid}) ->
 			   case mod_muc_room:is_subscribed(Pid, BareFrom) of
-			       {true, Nodes} ->
-				   [{jid:make(Name, Host), Nodes}];
+			       {true, Nick, Nodes} ->
+				   [{jid:make(Name, Host), Nick, Nodes}];
 			       false -> []
 			   end;
 		      (_) ->

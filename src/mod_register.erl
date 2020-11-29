@@ -38,7 +38,7 @@
 	 format_error/1, mod_doc/0]).
 
 -include("logger.hrl").
--include("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 -include("translate.hrl").
 
 start(Host, _Opts) ->
@@ -114,13 +114,12 @@ process_iq(#iq{from = From, to = To} = IQ, Source) ->
 	end,
     Server = To#jid.lserver,
     Access = mod_register_opt:access_remove(Server),
-    Remove = case acl:match_rule(Server, Access, From) of
-                 deny -> deny;
-                 allow when From#jid.lserver /= Server ->
-                     deny;
-                 allow ->
-                     check_access(From#jid.luser, Server, Source)
-             end,
+    Remove = case {acl:match_rule(Server, Access, From), From#jid.lserver} of
+		 {allow, Server} ->
+		     allow;
+		 {_, _} ->
+		     deny
+	     end,
     process_iq(IQ, Source, IsCaptchaEnabled, Remove == allow).
 
 process_iq(#iq{type = set, lang = Lang,
@@ -223,8 +222,7 @@ process_iq(#iq{type = get, from = From, to = To, id = ID, lang = Lang} = IQ,
 		       "with this server")),
     URL = mod_register_opt:redirect_url(Server),
     if (URL /= undefined) and not IsRegistered ->
-	    Txt = translate:translate(Lang, ?T("To register, visit ~s")),
-	    Desc = str:format(Txt, [URL]),
+	    Desc = str:translate_and_format(Lang, ?T("To register, visit ~s"), [URL]),
 	    xmpp:make_iq_result(
 	      IQ, #register{instructions = Desc,
 			    sub_els = [#oob_x{url = URL}]});
@@ -636,10 +634,10 @@ mod_doc() ->
           [{access,
             #{value => ?T("AccessName"),
               desc =>
-                  ?T("Specify rules to restrict what usernames can be registered and "
-                     "unregistered. If a rule returns 'deny' on the requested username, "
-                     "registration and unregistration of that user name is denied. "
-                     "There are no restrictions by default.")}},
+                  ?T("Specify rules to restrict what usernames can be registered. "
+                     "If a rule returns 'deny' on the requested username, "
+                     "registration of that user name is denied. There are no "
+                     "restrictions by default.")}},
            {access_from,
             #{value => ?T("AccessName"),
               desc =>

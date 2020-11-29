@@ -66,7 +66,10 @@ defmodule Ejabberd.Mixfile do
              cond_options() ++
              Enum.map(includes, fn (path) -> {:i, path} end) ++
              if_version_above('20', [{:d, :DEPRECATED_GET_STACKTRACE}]) ++
+             if_version_below('21', [{:d, :USE_OLD_HTTP_URI}]) ++
              if_version_below('22', [{:d, :LAGER}]) ++
+             if_version_below('23', [{:d, :USE_OLD_CRYPTO_HMAC}]) ++
+             if_version_below('23', [{:d, :USE_OLD_PG2}]) ++
              if_function_exported(:erl_error, :format_exception, 6, [{:d, :HAVE_ERL_ERROR}])
     defines = for {:d, value} <- result, do: {:d, value}
     result ++ [{:d, :ALL_DEFS, defines}]
@@ -142,7 +145,7 @@ defmodule Ejabberd.Mixfile do
 
   defp package do
     [# These are the default files included in the package
-      files: ["lib", "src", "priv", "mix.exs", "include", "README.md", "COPYING"],
+      files: ["lib", "src", "priv", "mix.exs", "include", "README.md", "COPYING", "rebar.config", "rebar.config.script"],
       maintainers: ["ProcessOne"],
       licenses: ["GPLv2"],
       links: %{"Site" => "https://www.ejabberd.im",

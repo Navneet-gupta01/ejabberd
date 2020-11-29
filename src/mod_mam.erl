@@ -44,7 +44,7 @@
 	 is_empty_for_user/2, is_empty_for_room/3, check_create_room/4,
 	 process_iq/3, store_mam_message/7, make_id/0, wrap_as_mucsub/2, select/7]).
 
--include("xmpp.hrl").
+-include_lib("xmpp/include/xmpp.hrl").
 -include("logger.hrl").
 -include("mod_muc_room.hrl").
 -include("ejabberd_commands.hrl").
@@ -687,11 +687,11 @@ process_iq(LServer, #iq{from = #jid{luser = LUser}, lang = Lang,
 		#mam_query{rsm = #rsm_set{index = I}} when is_integer(I) ->
 		    Txt = ?T("Unsupported <index/> element"),
 		    xmpp:make_error(IQ, xmpp:err_feature_not_implemented(Txt, Lang));
-		#mam_query{rsm = RSM, xmlns = NS} ->
+		#mam_query{rsm = RSM, flippage = FlipPage, xmlns = NS} ->
 		    case parse_query(SubEl, Lang) of
 			{ok, Query} ->
 			    NewRSM = limit_max(RSM, NS),
-			    select_and_send(LServer, Query, NewRSM, IQ, MsgType);
+			    select_and_send(LServer, Query, NewRSM, FlipPage, IQ, MsgType);
 			{error, Err} ->
 			    xmpp:make_error(IQ, Err)
 		    end
@@ -1017,7 +1017,7 @@ maybe_activate_mam(LUser, LServer) ->
 	    ok
     end.
 
-select_and_send(LServer, Query, RSM, #iq{from = From, to = To} = IQ, MsgType) ->
+select_and_send(LServer, Query, RSM, FlipPage, #iq{from = From, to = To} = IQ, MsgType) ->
     Ret = case MsgType of
 	      chat ->
 		  select(LServer, From, From, Query, RSM, MsgType);
@@ -1027,7 +1027,11 @@ select_and_send(LServer, Query, RSM, #iq{from = From, to = To} = IQ, MsgType) ->
     case Ret of
 	{Msgs, IsComplete, Count} ->
 	    SortedMsgs = lists:keysort(2, Msgs),
-	    send(SortedMsgs, Count, IsComplete, IQ);
+	    SortedMsgs2 = case FlipPage of
+	                       true -> lists:reverse(SortedMsgs);
+	                       false -> SortedMsgs
+	                  end,
+	    send(SortedMsgs2, Count, IsComplete, IQ);
 	{error, _} ->
 	    Txt = ?T("Database failure"),
 	    Err = xmpp:err_internal_server_error(Txt, IQ#iq.lang),
@@ -1134,7 +1138,7 @@ select_with_mucsub_fallback(LServer, JidRequestor, JidArchive, Query, RSM, Flags
 			   _ ->
 			       []
 		       end,
-	    SubRoomJids = [Jid || {Jid, _} <- SubRooms],
+	    SubRoomJids = [Jid || {Jid, _, _} <- SubRooms],
 	    {E2, A2, C2} =
 		lists:foldl(
 		  fun(MucJid, {E0, A0, C0}) ->
