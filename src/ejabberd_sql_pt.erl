@@ -5,7 +5,7 @@
 %%% Created : 20 Jan 2016 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -549,25 +549,35 @@ parse_upsert_field1([C | S], Acc, ParamPos, Loc) ->
 
 make_sql_upsert(Table, ParseRes, Pos) ->
     check_upsert(ParseRes, Pos),
+    HasInsertOnlyFields = lists:any(
+        fun({_, {false}, _}) -> true;
+           (_) -> false
+        end, ParseRes),
+    MySqlReplace = case HasInsertOnlyFields of
+                       false ->
+                           [erl_syntax:clause(
+                               [erl_syntax:atom(mysql), erl_syntax:underscore()],
+                               [],
+                               [make_sql_upsert_mysql(Table, ParseRes),
+                                erl_syntax:atom(ok)])];
+                       _ ->
+                           []
+                   end,
     erl_syntax:fun_expr(
-      [erl_syntax:clause(
-         [erl_syntax:atom(pgsql), erl_syntax:variable("__Version")],
-         [erl_syntax:infix_expr(
-            erl_syntax:variable("__Version"),
-            erl_syntax:operator('>='),
-            erl_syntax:integer(90100))],
-         [make_sql_upsert_pgsql901(Table, ParseRes),
-          erl_syntax:atom(ok)]),
-       erl_syntax:clause(
-           [erl_syntax:atom(mysql), erl_syntax:underscore()],
-           [],
-           [make_sql_upsert_mysql(Table, ParseRes),
-            erl_syntax:atom(ok)]),
-       erl_syntax:clause(
-         [erl_syntax:underscore(), erl_syntax:underscore()],
-         none,
-         [make_sql_upsert_generic(Table, ParseRes)])
-      ]).
+        [erl_syntax:clause(
+            [erl_syntax:atom(pgsql), erl_syntax:variable("__Version")],
+            [erl_syntax:infix_expr(
+                erl_syntax:variable("__Version"),
+                erl_syntax:operator('>='),
+                erl_syntax:integer(90100))],
+            [make_sql_upsert_pgsql901(Table, ParseRes),
+             erl_syntax:atom(ok)])] ++
+            MySqlReplace ++
+            [erl_syntax:clause(
+                [erl_syntax:underscore(), erl_syntax:underscore()],
+                none,
+                [make_sql_upsert_generic(Table, ParseRes)])
+            ]).
 
 make_sql_upsert_generic(Table, ParseRes) ->
     Update = make_sql_query(make_sql_upsert_update(Table, ParseRes)),

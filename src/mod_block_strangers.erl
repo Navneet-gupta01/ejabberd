@@ -5,7 +5,7 @@
 %%% Created : 25 Dec 2016 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -208,9 +208,10 @@ need_check(Pkt) ->
 		  _ ->
 		      false
 	      end,
+    IsError = (error == xmpp:get_type(Pkt)),
     AllowLocalUsers = mod_block_strangers_opt:allow_local_users(LServer),
     Access = mod_block_strangers_opt:access(LServer),
-    not (IsSelf orelse IsEmpty
+    not (IsSelf orelse IsEmpty orelse IsError
 	 orelse acl:match_rule(LServer, Access, From) == allow
 	 orelse ((AllowLocalUsers orelse From#jid.luser == <<"">>)
 		 andalso ejabberd_router:is_my_host(From#jid.lserver))).

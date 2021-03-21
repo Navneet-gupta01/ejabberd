@@ -5,7 +5,7 @@
 %%% Created :  2 Jan 2003 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -210,7 +210,7 @@ process_local_iq(#iq{type = get, to = To, lang = Lang} = IQ) ->
 		undefined ->
 		    #vcard_temp{fn = <<"ejabberd">>,
 				url = ejabberd_config:get_uri(),
-				desc = misc:get_descr(Lang, ?T("Erlang Jabber Server")),
+				desc = misc:get_descr(Lang, ?T("Erlang XMPP Server")),
 				bday = <<"2002-11-16">>};
 		V ->
 		    V
@@ -403,7 +403,7 @@ vcard_iq_set(#iq{from = From, lang = Lang, sub_els = [VCard]} = IQ) ->
 vcard_iq_set(Acc) ->
     Acc.
 
--spec set_vcard(binary(), binary(), xmlel() | vcard_temp()) -> {error, badarg} | ok.
+-spec set_vcard(binary(), binary(), xmlel() | vcard_temp()) -> {error, badarg|binary()} | ok.
 set_vcard(User, LServer, VCARD) ->
     case jid:nodeprep(User) of
 	error ->
@@ -412,10 +412,14 @@ set_vcard(User, LServer, VCARD) ->
 	    VCardEl = xmpp:encode(VCARD),
 	    VCardSearch = make_vcard_search(User, LUser, LServer, VCardEl),
 	    Mod = gen_mod:db_mod(LServer, ?MODULE),
-	    Mod:set_vcard(LUser, LServer, VCardEl, VCardSearch),
-	    ets_cache:delete(?VCARD_CACHE, {LUser, LServer},
+            case Mod:set_vcard(LUser, LServer, VCardEl, VCardSearch) of
+                {atomic, ok} ->
+	            ets_cache:delete(?VCARD_CACHE, {LUser, LServer},
 			     cache_nodes(Mod, LServer)),
-	    ok
+                    ok;
+                {atomic, Error} ->
+                    {error, Error}
+            end
     end.
 
 -spec string2lower(binary()) -> binary().
@@ -456,7 +460,7 @@ make_instructions(Mod, Lang) ->
     Fill = translate:translate(
 	     Lang,
 	     ?T("Fill in the form to search for any matching "
-		"Jabber User")),
+		"XMPP User")),
     Add = translate:translate(
 	    Lang,
 	    ?T(" (Add * to the end of field to match substring)")),

@@ -5,7 +5,7 @@
 %%% Created :  4 Jul 2013 by Evgeniy Khramtsov <ekhramtsov@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2013-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2013-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -326,7 +326,7 @@ remove_mam_for_user_with_peer(User, Server, Peer) ->
     LServer = jid:nameprep(Server),
     try jid:decode(Peer) of
 	Jid ->
-	    Mod = gen_mod:db_mod(LServer, ?MODULE),
+	    Mod = get_module_host(LServer),
 	    case Mod:remove_from_archive(LUser, LServer, Jid) of
 		ok ->
 		    {ok, <<"MAM archive removed">>};
@@ -337,6 +337,12 @@ remove_mam_for_user_with_peer(User, Server, Peer) ->
 	    end
     catch _:_ ->
 	{error, <<"Invalid peer JID">>}
+    end.
+
+get_module_host(LServer) ->
+    try gen_mod:db_mod(LServer, ?MODULE)
+    catch error:{module_not_loaded, ?MODULE, LServer} ->
+        gen_mod:db_mod(ejabberd_router:host_of_route(LServer), ?MODULE)
     end.
 
 -spec get_room_config([muc_roomconfig:property()], mod_muc_room:state(),
@@ -1286,9 +1292,11 @@ send(Msgs, Count, IsComplete,
     RSMOut = make_rsm_out(Msgs, Count),
     Result = if NS == ?NS_MAM_TMP ->
 		     #mam_query{xmlns = NS, id = QID, rsm = RSMOut};
-		true ->
+	        NS == ?NS_MAM_0 ->
 		     #mam_fin{xmlns = NS, id = QID, rsm = RSMOut,
-			      complete = IsComplete}
+			      complete = IsComplete};
+		true ->
+		     #mam_fin{xmlns = NS, rsm = RSMOut, complete = IsComplete}
 	     end,
     if NS /= ?NS_MAM_0 ->
 	    lists:foreach(

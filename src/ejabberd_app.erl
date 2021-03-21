@@ -5,7 +5,7 @@
 %%% Created : 31 Jan 2003 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -58,6 +58,7 @@ start(normal, _Args) ->
 			ejabberd_cluster:wait_for_sync(infinity),
 			ejabberd_hooks:run(ejabberd_started, []),
 			ejabberd:check_apps(),
+			ejabberd_systemd:ready(),
 			{T2, _} = statistics(wall_clock),
 			?INFO_MSG("ejabberd ~ts is started in the node ~p in ~.2fs",
 				  [ejabberd_option:version(),
@@ -96,6 +97,7 @@ start_included_apps() ->
 %% This function is called when an application is about to be stopped,
 %% before shutting down the processes of the application.
 prep_stop(State) ->
+    ejabberd_systemd:stopping(),
     ejabberd_hooks:run(ejabberd_stopping, []),
     ejabberd_listener:stop(),
     ejabberd_sm:stop(),

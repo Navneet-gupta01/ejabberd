@@ -5,7 +5,7 @@
 %%% Created : 19 Mar 2003 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -531,7 +531,8 @@ normal_state({route, ToNick,
 	continue_delivery ->
 	    case {(StateData#state.config)#config.allow_private_messages,
 		  is_user_online(From, StateData) orelse
-		  is_subscriber(From, StateData)} of
+		  is_subscriber(From, StateData) orelse
+		  is_user_allowed_message_nonparticipant(From, StateData)} of
 		{true, true} when Type == groupchat ->
 		    ErrText = ?T("It is not allowed to send private messages "
 				 "of type \"groupchat\""),
@@ -912,11 +913,9 @@ terminate(Reason, _StateName,
 		    _ ->
 			ok
 		end
-	end,
-	mod_muc:room_destroyed(Host, Room, self(), LServer)
+	end
     catch ?EX_RULE(E, R, St) ->
 	    StackTrace = ?EX_STACK(St),
-	    mod_muc:room_destroyed(Host, Room, self(), LServer),
 	    ?ERROR_MSG("Got exception on room termination:~n** ~ts",
 		       [misc:format_exception(2, E, R, StackTrace)])
     end.
@@ -938,32 +937,43 @@ process_groupchat_message(#message{from = From, lang = Lang} = Packet, StateData
 	of
       true ->
 	  {FromNick, Role} = get_participant_data(From, StateData),
-	  if (Role == moderator) or (Role == participant) or
-	     (IsSubscriber andalso ((StateData#state.config)#config.members_by_default == true)) or
-	       ((StateData#state.config)#config.moderated == false) ->
-		 Subject = check_subject(Packet),
-		 {NewStateData1, IsAllowed} = case Subject of
-						[] -> {StateData, true};
-						_ ->
-						    case
-						      can_change_subject(Role,
-									 IsSubscriber,
-									 StateData)
-							of
-						      true ->
-							  NSD =
-							      StateData#state{subject
-										  =
-										  Subject,
-									      subject_author
-										  =
-										  FromNick},
-							  store_room(NSD),
-							  {NSD, true};
-						      _ -> {StateData, false}
-						    end
-					      end,
-		 case IsAllowed of
+	  #config{moderated = Moderated} = StateData#state.config,
+	  AllowedByModerationRules =
+	  case {Role == moderator orelse Role == participant orelse
+		not Moderated, IsSubscriber} of
+	      {true, _} -> true;
+	      {_, true} ->
+		  case get_default_role(get_affiliation(From, StateData),
+					StateData) of
+		      moderator -> true;
+		      participant -> true;
+		      _ -> false
+		  end;
+	      _ ->
+		  false
+	  end,
+	  if AllowedByModerationRules ->
+	      Subject = check_subject(Packet),
+	      {NewStateData1, IsAllowed} =
+	      case Subject of
+		  [] ->
+		      {StateData, true};
+		  _ ->
+		      case
+			  can_change_subject(Role,
+					     IsSubscriber,
+					     StateData)
+		      of
+			  true ->
+			      NSD =
+			      StateData#state{subject = Subject,
+					      subject_author = FromNick},
+			      store_room(NSD),
+			      {NSD, true};
+			  _ -> {StateData, false}
+		      end
+	      end,
+	      case IsAllowed of
 		   true ->
 		       case
 			 ejabberd_hooks:run_fold(muc_filter_message,
@@ -1192,7 +1202,7 @@ get_participant_data(From, StateData) ->
 		#subscriber{nick = FromNick} ->
 		    {FromNick, none}
 	    catch _:{badkey, _} ->
-		    {<<"">>, moderator}
+		    {From#jid.luser, moderator}
 	    end
     end.
 
@@ -2937,7 +2947,11 @@ process_item_change(Item, SD, UJID) ->
 	    {JID, affiliation, outcast, Reason} ->
 		send_kickban_presence(UJID, JID, Reason, 301, outcast, SD),
 		maybe_send_affiliation(JID, outcast, SD),
-		set_affiliation(JID, outcast, set_role(JID, none, SD), Reason);
+                {result, undefined, SD2} =
+                    process_iq_mucsub(JID,
+                                      #iq{type = set,
+                                          sub_els = [#muc_unsubscribe{}]}, SD),
+		set_affiliation(JID, outcast, set_role(JID, none, SD2), Reason);
 	    {JID, affiliation, A, Reason} when (A == admin) or (A == owner) ->
 		SD1 = set_affiliation(JID, A, SD, Reason),
 		SD2 = set_role(JID, moderator, SD1),
@@ -3368,7 +3382,7 @@ process_iq_owner(From, #iq{type = set, lang = Lang,
 			    case is_allowed_log_change(Options, StateData, From) andalso
 				is_allowed_persistent_change(Options, StateData, From) andalso
 				is_allowed_mam_change(Options, StateData, From) andalso
-				is_allowed_room_name_desc_limits(Options, StateData) andalso
+				is_allowed_string_limits(Options, StateData) andalso
 				is_password_settings_correct(Options, StateData) of
 				true ->
 				    set_config(Options, StateData, Lang);
@@ -3452,16 +3466,25 @@ is_allowed_mam_change(Options, StateData, From) ->
 			   AccessMam, From)
     end.
 
-%% Check if the Room Name and Room Description defined in the Data Form
+%% Check if the string fields defined in the Data Form
 %% are conformant to the configured limits
--spec is_allowed_room_name_desc_limits(muc_roomconfig:result(), state()) -> boolean().
-is_allowed_room_name_desc_limits(Options, StateData) ->
+-spec is_allowed_string_limits(muc_roomconfig:result(), state()) -> boolean().
+is_allowed_string_limits(Options, StateData) ->
     RoomName = proplists:get_value(roomname, Options, <<"">>),
     RoomDesc = proplists:get_value(roomdesc, Options, <<"">>),
+    Password = proplists:get_value(roomsecret, Options, <<"">>),
+    CaptchaWhitelist = proplists:get_value(captcha_whitelist, Options, []),
+    CaptchaWhitelistSize = lists:foldl(
+      fun(Jid, Sum) -> byte_size(jid:encode(Jid)) + Sum end,
+      0, CaptchaWhitelist),
     MaxRoomName = mod_muc_opt:max_room_name(StateData#state.server_host),
     MaxRoomDesc = mod_muc_opt:max_room_desc(StateData#state.server_host),
+    MaxPassword = mod_muc_opt:max_password(StateData#state.server_host),
+    MaxCaptchaWhitelist = mod_muc_opt:max_captcha_whitelist(StateData#state.server_host),
     (byte_size(RoomName) =< MaxRoomName)
-	andalso (byte_size(RoomDesc) =< MaxRoomDesc).
+    andalso (byte_size(RoomDesc) =< MaxRoomDesc)
+    andalso (byte_size(Password) =< MaxPassword)
+    andalso (CaptchaWhitelistSize =< MaxCaptchaWhitelist).
 
 %% Return false if:
 %% "the password for a password-protected room is blank"

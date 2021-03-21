@@ -5,7 +5,7 @@
 %%% Created : 17 Jul 2008 by Pablo Polvorin <pablo.polvorin@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -584,8 +584,8 @@ make_main_basefilename(Dir, FnT) ->
     filename:join([Dir, Filename2]).
 
 %% @doc Make the filename for the host.
-%% Example: ``(<<"20080804-231550">>, <<"jabber.example.org">>) ->
-%%             <<"20080804-231550_jabber_example_org.xml">>''
+%% Example: ``(<<"20080804-231550">>, <<"xmpp.domain.tld">>) ->
+%%             <<"20080804-231550_xmpp_domain_tld.xml">>''
 make_host_filename(FnT, Host) ->
     Host2 = str:join(str:tokens(Host, <<".">>), <<"_">>),
     <<FnT/binary, "_", Host2/binary, ".xml">>.

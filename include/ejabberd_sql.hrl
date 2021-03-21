@@ -1,6 +1,6 @@
 %%%----------------------------------------------------------------------
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -29,11 +29,19 @@
 -define(SQL_INSERT_MARK, sql_insert__mark_).
 -define(SQL_INSERT(Table, Fields), ?SQL_INSERT_MARK(Table, Fields)).
 
+-ifdef(COMPILER_REPORTS_ONLY_LINES).
 -record(sql_query, {hash :: binary(),
 		    format_query :: fun(),
 		    format_res :: fun(),
 		    args :: fun(),
 		    loc :: {module(), pos_integer()}}).
+-else.
+-record(sql_query, {hash :: binary(),
+		    format_query :: fun(),
+		    format_res :: fun(),
+		    args :: fun(),
+		    loc :: {module(), {pos_integer(), pos_integer()}}}).
+-endif.
 
 -record(sql_escape, {string :: fun((binary()) -> binary()),
 		     integer :: fun((integer()) -> binary()),

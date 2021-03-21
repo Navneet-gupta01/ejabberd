@@ -5,7 +5,7 @@
 %%% Created : 29 May 2007 by Badlop <badlop@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -1164,7 +1164,7 @@ mod_options(Host) ->
 mod_doc() ->
     #{desc =>
 	  [?T("This module implements a service for "
-	      "https://xmpp.org/extensions/xep-0054.html"
+	      "https://xmpp.org/extensions/xep-0033.html"
 	      "[XEP-0033: Extended Stanza Addressing].")],
       opts =>
           [{access,

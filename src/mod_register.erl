@@ -5,7 +5,7 @@
 %%% Created :  8 Dec 2002 by Alexey Shchepin <alexey@process-one.net>
 %%%
 %%%
-%%% ejabberd, Copyright (C) 2002-2020   ProcessOne
+%%% ejabberd, Copyright (C) 2002-2021   ProcessOne
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -183,7 +183,12 @@ process_iq(#iq{type = set, to = To,
 	       lang = Lang, sub_els = [#register{xdata = #xdata{} = X}]} = IQ,
 	   Source, true, _AllowRemove) ->
     Server = To#jid.lserver,
-    case ejabberd_captcha:process_reply(X) of
+    XdataC = xmpp_util:set_xdata_field(
+           #xdata_field{
+              var = <<"FORM_TYPE">>,
+              type = hidden, values = [?NS_CAPTCHA]},
+           X),
+    case ejabberd_captcha:process_reply(XdataC) of
 	ok ->
 	    case process_xdata_submit(X) of
 		{ok, User, Password} ->
@@ -242,9 +247,15 @@ process_iq(#iq{type = get, from = From, to = To, id = ID, lang = Lang} = IQ,
 		       fields = [UField, PField]},
 	    case ejabberd_captcha:create_captcha_x(ID, To, Lang, Source, X) of
 		{ok, CaptchaEls} ->
+                    {value, XdataC, CaptchaEls2} = lists:keytake(xdata, 1, CaptchaEls),
+                    Xdata = xmpp_util:set_xdata_field(
+                               #xdata_field{
+                                  var = <<"FORM_TYPE">>,
+                                  type = hidden, values = [?NS_REGISTER]},
+                               XdataC),
 		    xmpp:make_iq_result(
 		      IQ, #register{instructions = TopInstr,
-				    sub_els = CaptchaEls});
+				    sub_els = [Xdata | CaptchaEls2]});
 		{error, limit} ->
 		    ErrText = ?T("Too many CAPTCHA requests"),
 		    xmpp:make_error(
@@ -623,7 +634,7 @@ mod_doc() ->
     #{desc =>
           [?T("This module adds support for https://xmpp.org/extensions/xep-0077.html"
               "[XEP-0077: In-Band Registration]. "
-              "This protocol enables end users to use a XMPP client to:"), "",
+              "This protocol enables end users to use an XMPP client to:"), "",
            ?T("* Register a new account on the server."), "",
            ?T("* Change the password from an existing account on the server."), "",
            ?T("* Delete an existing account on the server."), "",
@@ -654,7 +665,7 @@ mod_doc() ->
             #{value => "true | false",
               desc =>
                   ?T("Protect registrations with CAPTCHA (see section "
-                     "https://docs.ejabberd.im/admin/configuration/#captcha[CAPTCHA] "
+                     "https://docs.ejabberd.im/admin/configuration/basic/#captcha[CAPTCHA] "
                      "of the Configuration Guide). The default is 'false'.")}},
            {ip_access,
             #{value => ?T("AccessName"),
